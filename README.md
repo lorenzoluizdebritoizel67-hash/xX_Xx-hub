@@ -1,5 +1,5 @@
 -- ==================== SISTEMA DE KEY (PRIMEIRO) ====================
-local KEY_CORRETA = "157"
+local KEY_CORRETA = "666"
 
 local p = game.Players.LocalPlayer
 local PlayerGui = p:WaitForChild("PlayerGui")
