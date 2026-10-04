@@ -72,7 +72,7 @@ end)
 
 repeat task.wait() until keyAprovada
 
--- ==================== TELA PRETA DE INTRO (DEPOIS DA KEY) ====================
+-- ==================== TELA PRETA DE INTRO ====================
 local introGui = Instance.new("ScreenGui", PlayerGui)
 introGui.DisplayOrder = 9999
 introGui.ResetOnSpawn = false
@@ -133,6 +133,7 @@ local noclipAtivo = false
 local flyAtivo = false
 local touchFlingAtivo = false
 local espAtivo = false
+local espLineAtivo = false
 local travarServeAtivo = false
 local transparenciaAtiva = false
 local invisivelAtivo = false
@@ -145,7 +146,6 @@ local aimbotParteAlvo = "Head"
 local walkFlingAtivado = false
 local conexaoWalkFling = nil
 
--- SISTEMA DE KEYBIND, TEMAS E EXIBIÇÃO DO TÍTULO FORA DO PAINEL
 local teclaAtalho = nil
 local aguardandoTecla = false
 local temaAtual = "padrao"
@@ -155,24 +155,25 @@ local tituloForaAtivo = true
 local mm2AssassinoAtivo = false
 local mm2XerifeAtivo = false
 local mm2InocenteAtivo = false
-local pegarArmaMortaAtivo = false
-local espArmaXerifeAtivo = false
+local autoTpArmaAtivo = false
 local aimbotApenasAssassinoAtivo = false
 local mm2Boxes = {}
 local mm2Tags = {}
-local espArmaHighlight = nil
+local mm2TracerLines = {}
 
 local originalTransparencias = {}
 local tamanhosOriginaisParts = {}
 local transparenciaPersonagemOriginal = {}
 local espBoxes = {}
 local espTags = {}
+local espTracerLines = {}
 local tamanhosOriginaisHrps = {}
 local c00lkiddAtivo = false
 local jogadorSelecionado = nil
 local alvoUltSelecionado = nil
+local jaAutoPegouArma = false
 
--- Função auxiliar para encontrar a arma caída do MM2
+-- Função para localizar a Arma do Xerife no chão
 local function encontrarArmaNoChao()
     for _, obj in pairs(Workspace:GetChildren()) do
         if obj.Name == "GunDrop" or obj.Name == "SheriffGun" then
@@ -189,7 +190,7 @@ local function encontrarArmaNoChao()
     return nil
 end
 
--- ==================== CÍRCULO DO AIMBOT (FOV) ====================
+-- FOV AIMBOT
 local fovCircle = Drawing.new("Circle")
 fovCircle.Visible = false
 fovCircle.Transparency = 0.7
@@ -251,7 +252,7 @@ local function criarAreaConteudo()
 end
 
 local abaJogador = criarAreaConteudo()
-abaJogador.CanvasSize = UDim2.new(0, 0, 0, 680)
+abaJogador.CanvasSize = UDim2.new(0, 0, 0, 720)
 abaJogador.Visible = true
 
 local abaLista = criarAreaConteudo()
@@ -351,7 +352,7 @@ local function criarBtn(parent, txt, pos, size)
     return b
 end
 
--- ==================== BOTÃO TITLE LORENZO (FORA DO PAINEL) ====================
+-- ==================== TÍTULO LORENZO FORA DO PAINEL ====================
 local titleButton = Instance.new("TextButton", gui)
 titleButton.Name = "TitleLorenzo"
 titleButton.Position = UDim2.new(0.5, 0, 0, 2) 
@@ -420,7 +421,7 @@ local function aplicarTema(nomeTema)
     end
 end
 
--- ==================== FUNÇÃO FLING SEGURA COM RETORNO IMEDIATO ====================
+-- ==================== FUNÇÃO FLING ====================
 local function FlingNoAlvo(alvo)
     local meuChar = p.Character
     local alvoChar = alvo.Character
@@ -429,18 +430,12 @@ local function FlingNoAlvo(alvo)
         local hrp = meuChar.HumanoidRootPart
         local hrpAlvo = alvoChar.HumanoidRootPart
         local humanoid = meuChar:FindFirstChildOfClass("Humanoid")
-        
         local posicaoOriginal = hrp.CFrame
         
         for _, v in pairs(meuChar:GetDescendants()) do
-            if v:IsA("BasePart") then
-                v.CanCollide = false
-            end
+            if v:IsA("BasePart") then v.CanCollide = false end
         end
-        
-        if humanoid then
-            humanoid.PlatformStand = true
-        end
+        if humanoid then humanoid.PlatformStand = true end
         
         local bodyVelocity = Instance.new("BodyVelocity")
         bodyVelocity.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
@@ -463,15 +458,10 @@ local function FlingNoAlvo(alvo)
         
         bodyAngularVelocity:Destroy()
         bodyVelocity:Destroy()
-        
-        if humanoid then
-            humanoid.PlatformStand = false
-        end
+        if humanoid then humanoid.PlatformStand = false end
         
         for _, v in pairs(meuChar:GetDescendants()) do
-            if v:IsA("BasePart") then
-                v.CanCollide = true
-            end
+            if v:IsA("BasePart") then v.CanCollide = true end
         end
         
         if hrp and hrp.Parent then
@@ -482,10 +472,9 @@ local function FlingNoAlvo(alvo)
     end
 end
 
--- ==================== ABA PESSOAS & MINI PAINEL COM FLING ====================
+-- ==================== ABA PESSOAS & MINI PAINEL ====================
 local containerLista = Instance.new("ScrollingFrame", abaLista)
 containerLista.Size = UDim2.new(1, 0, 1, 0)
-containerLista.Position = UDim2.new(0, 0, 0, 0)
 containerLista.BackgroundTransparency = 1
 containerLista.ScrollBarThickness = 4
 containerLista.CanvasSize = UDim2.new(0, 0, 0, 0)
@@ -586,9 +575,7 @@ tpMiniBtn.MouseButton1Click:Connect(function()
 end)
 
 flingMiniBtn.MouseButton1Click:Connect(function()
-    if jogadorSelecionado then
-        FlingNoAlvo(jogadorSelecionado)
-    end
+    if jogadorSelecionado then FlingNoAlvo(jogadorSelecionado) end
 end)
 
 viewMiniBtn.MouseButton1Click:Connect(function()
@@ -635,7 +622,6 @@ local function atualizarListaPessoas()
                 miniLabel.Text = "Alvo: " .. plr.Name
                 miniPainel.Visible = true
             end)
-            
             y = y + 32
         end
     end
@@ -650,10 +636,9 @@ task.spawn(atualizarListaPessoas)
 local mm2AssassinoBtn = criarBtn(abaMm2, "Ver Assassinos: OFF", UDim2.new(0, 0, 0, 0))
 local mm2XerifeBtn = criarBtn(abaMm2, "Ver Xerifes/Heróis: OFF", UDim2.new(0, 0, 0, 35))
 local mm2InocenteBtn = criarBtn(abaMm2, "Ver Inocentes: OFF", UDim2.new(0, 0, 0, 70))
-local espArmaXerifeBtn = criarBtn(abaMm2, "ESP Arma do Xerife (Amarelo): OFF", UDim2.new(0, 0, 0, 105))
-local pegarArmaMortaBtn = criarBtn(abaMm2, "TP até a Arma (Ida e Volta)", UDim2.new(0, 0, 0, 140))
-local killAllFacaBtn = criarBtn(abaMm2, "Puxar Hitbox p/ Mim (Murder Kill All)", UDim2.new(0, 0, 0, 175))
-local aimbotAssassinoBtn = criarBtn(abaMm2, "Aimbot Apenas no Assassino: OFF", UDim2.new(0, 0, 0, 210))
+local autoTpArmaBtn = criarBtn(abaMm2, "TP até a Arma: OFF", UDim2.new(0, 0, 0, 105))
+local killAllFacaBtn = criarBtn(abaMm2, "Puxar Hitbox p/ Mim (Murder Kill All)", UDim2.new(0, 0, 0, 140))
+local aimbotAssassinoBtn = criarBtn(abaMm2, "Aimbot Apenas no Assassino: OFF", UDim2.new(0, 0, 0, 175))
 
 killAllFacaBtn.BackgroundColor3 = Color3.fromRGB(150, 0, 0)
 
@@ -675,48 +660,18 @@ mm2InocenteBtn.MouseButton1Click:Connect(function()
     mm2InocenteBtn.BackgroundColor3 = mm2InocenteAtivo and Color3.fromRGB(0, 150, 0) or Color3.fromRGB(0, 0, 0)
 end)
 
-espArmaXerifeBtn.MouseButton1Click:Connect(function()
-    espArmaXerifeAtivo = not espArmaXerifeAtivo
-    espArmaXerifeBtn.Text = espArmaXerifeAtivo and "ESP Arma do Xerife (Amarelo): ON" or "ESP Arma do Xerife (Amarelo): OFF"
-    espArmaXerifeBtn.BackgroundColor3 = espArmaXerifeAtivo and Color3.fromRGB(200, 200, 0) or Color3.fromRGB(0, 0, 0)
-    
-    if not espArmaXerifeAtivo and espArmaHighlight then
-        espArmaHighlight:Destroy()
-        espArmaHighlight = nil
-    end
-end)
-
-local tpArmaCooldown = false
-pegarArmaMortaBtn.MouseButton1Click:Connect(function()
-    if tpArmaCooldown then return end
-    
-    local arma = encontrarArmaNoChao()
-    local meuChar = p.Character
-    local hrp = meuChar and meuChar:FindFirstChild("HumanoidRootPart")
-    
-    if hrp and arma then
-        tpArmaCooldown = true
-        local cframeOriginal = hrp.CFrame
-        local cframeArma = arma:IsA("BasePart") and arma.CFrame or arma:GetPivot()
-        
-        hrp.CFrame = cframeArma + Vector3.new(0, 2, 0)
-        task.wait(0.3)
-        hrp.CFrame = cframeOriginal
-        
-        task.wait(1)
-        tpArmaCooldown = false
-    end
+autoTpArmaBtn.MouseButton1Click:Connect(function()
+    autoTpArmaAtivo = not autoTpArmaAtivo
+    autoTpArmaBtn.Text = autoTpArmaAtivo and "TP até a Arma: ON" or "TP até a Arma: OFF"
+    autoTpArmaBtn.BackgroundColor3 = autoTpArmaAtivo and Color3.fromRGB(180, 0, 0) or Color3.fromRGB(0, 0, 0)
+    jaAutoPegouArma = false
 end)
 
 aimbotAssassinoBtn.MouseButton1Click:Connect(function()
     aimbotApenasAssassinoAtivo = not aimbotApenasAssassinoAtivo
     aimbotAssassinoBtn.Text = aimbotApenasAssassinoAtivo and "Aimbot Apenas no Assassino: ON" or "Aimbot Apenas no Assassino: OFF"
     aimbotAssassinoBtn.BackgroundColor3 = aimbotApenasAssassinoAtivo and Color3.fromRGB(180, 0, 0) or Color3.fromRGB(0, 0, 0)
-    if aimbotApenasAssassinoAtivo then
-        fovCircle.Visible = true
-    else
-        if not aimbotAtivo then fovCircle.Visible = false end
-    end
+    fovCircle.Visible = aimbotApenasAssassinoAtivo or aimbotAtivo
 end)
 
 killAllFacaBtn.MouseButton1Click:Connect(function()
@@ -748,79 +703,54 @@ killAllFacaBtn.MouseButton1Click:Connect(function()
         end
         
         task.wait(0.1)
-        
-        if tool and tool.Parent == meuChar then
-            tool:Activate()
-        end
+        if tool and tool.Parent == meuChar then tool:Activate() end
     end)
 end)
 
 local function detectarPapelMM2(plr)
     local char = plr.Character
     local backpack = plr:FindFirstChildOfClass("Backpack")
-    
-    local temFaca = false
-    local temArma = false
+    local temFaca, temArma = false, false
     
     local function verificarObjeto(obj)
         if obj:IsA("Tool") then
             local nome = obj.Name:lower()
-            if nome:find("knife") or nome:find("faca") then
-                temFaca = true
-            elseif nome:find("gun") or nome:find("revolver") or nome:find("arma") then
-                temArma = true
-            end
+            if nome:find("knife") or nome:find("faca") then temFaca = true
+            elseif nome:find("gun") or nome:find("revolver") or nome:find("arma") then temArma = true end
         end
     end
     
-    if char then
-        for _, v in pairs(char:GetChildren()) do
-            verificarObjeto(v)
-        end
-    end
+    if char then for _, v in pairs(char:GetChildren()) do verificarObjeto(v) end end
+    if backpack then for _, v in pairs(backpack:GetChildren()) do verificarObjeto(v) end end
     
-    if backpack then
-        for _, v in pairs(backpack:GetChildren()) do
-            verificarObjeto(v)
-        end
-    end
-    
-    if temFaca then
-        return "Murderer"
-    elseif temArma then
-        return "Sheriff"
-    end
-    
+    if temFaca then return "Murderer"
+    elseif temArma then return "Sheriff" end
     return "Innocent"
 end
 
+-- ==================== AUTOMATIZAÇÃO TP ARMA E CHAMS MM2 ====================
 RunService.RenderStepped:Connect(function()
-    if espArmaXerifeAtivo then
+    -- TELEPORT AUTOMÁTICO SE A ARMA CAIR NO CHÃO
+    if autoTpArmaAtivo then
         local arma = encontrarArmaNoChao()
-        if arma then
-            if not espArmaHighlight or espArmaHighlight.Parent ~= arma then
-                if espArmaHighlight then espArmaHighlight:Destroy() end
+        if arma and not jaAutoPegouArma then
+            local meuChar = p.Character
+            local hrp = meuChar and meuChar:FindFirstChild("HumanoidRootPart")
+            if hrp then
+                jaAutoPegouArma = true
+                local cfOriginal = hrp.CFrame
+                local cfArma = arma:IsA("BasePart") and arma.CFrame or arma:GetPivot()
                 
-                local hl = Instance.new("Highlight")
-                hl.Name = "GunHighlight_Lorenzo"
-                hl.FillColor = Color3.fromRGB(255, 255, 0)
-                hl.OutlineColor = Color3.fromRGB(255, 255, 255)
-                hl.FillTransparency = 0.3
-                hl.OutlineTransparency = 0
-                hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-                hl.Adornee = arma
-                hl.Parent = arma
-                
-                espArmaHighlight = hl
+                hrp.CFrame = cfArma + Vector3.new(0, 2, 0)
+                task.wait(0.3)
+                hrp.CFrame = cfOriginal
             end
-        else
-            if espArmaHighlight then
-                espArmaHighlight:Destroy()
-                espArmaHighlight = nil
-            end
+        elseif not arma then
+            jaAutoPegouArma = false
         end
     end
 
+    -- CHAMS COLORIDO CORPO INTEIRO MM2
     for _, plr in pairs(Pessoas:GetPlayers()) do
         if plr ~= p and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
             local papel = detectarPapelMM2(plr)
@@ -848,13 +778,14 @@ RunService.RenderStepped:Connect(function()
                     if box then box:Destroy() end
                     box = Instance.new("Highlight")
                     box.Adornee = plr.Character
-                    box.FillTransparency = 1
+                    box.FillTransparency = 0.4 -- CORPO TOTALMENTE COLORIDO
                     box.OutlineTransparency = 0
                     box.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
                     box.Parent = plr.Character
                     mm2Boxes[plr] = box
                 end
-                box.OutlineColor = corPapel
+                box.FillColor = corPapel
+                box.OutlineColor = Color3.fromRGB(255, 255, 255)
                 
                 local tag = mm2Tags[plr]
                 local head = plr.Character:FindFirstChild("Head")
@@ -885,29 +816,17 @@ RunService.RenderStepped:Connect(function()
                     tag.LabelPapel.TextColor3 = corPapel
                 end
             else
-                if mm2Boxes[plr] then
-                    mm2Boxes[plr]:Destroy()
-                    mm2Boxes[plr] = nil
-                end
-                if mm2Tags[plr] then
-                    mm2Tags[plr]:Destroy()
-                    mm2Tags[plr] = nil
-                end
+                if mm2Boxes[plr] then mm2Boxes[plr]:Destroy() mm2Boxes[plr] = nil end
+                if mm2Tags[plr] then mm2Tags[plr]:Destroy() mm2Tags[plr] = nil end
             end
         else
-            if mm2Boxes[plr] then
-                mm2Boxes[plr]:Destroy()
-                mm2Boxes[plr] = nil
-            end
-            if mm2Tags[plr] then
-                mm2Tags[plr]:Destroy()
-                mm2Tags[plr] = nil
-            end
+            if mm2Boxes[plr] then mm2Boxes[plr]:Destroy() mm2Boxes[plr] = nil end
+            if mm2Tags[plr] then mm2Tags[plr]:Destroy() mm2Tags[plr] = nil end
         end
     end
 end)
 
--- ==================== ABA CONFIGURAR (KEYBIND, VISIBILIDADE & TEMAS) ====================
+-- ==================== ABA CONFIGURAR ====================
 local lblKeybind = Instance.new("TextLabel", abaConfig)
 lblKeybind.Size = UDim2.new(1, 0, 0, 20)
 lblKeybind.Position = UDim2.new(0, 0, 0, 0)
@@ -1036,15 +955,16 @@ local noclipBtn = criarBtn(abaJogador, "Noclip: OFF", UDim2.new(0, 0, 0, 195))
 local flyBtn = criarBtn(abaJogador, "Fly: OFF", UDim2.new(0, 0, 0, 227))
 local invisivelBtn = criarBtn(abaJogador, "Invisível: OFF", UDim2.new(0, 0, 0, 259))
 local espBtn = criarBtn(abaJogador, "ESP Box + @: OFF", UDim2.new(0, 0, 0, 291))
-local aimbotBtn = criarBtn(abaJogador, "Aimbot: OFF", UDim2.new(0, 0, 0, 323))
-local aimbotParteBtn = criarBtn(abaJogador, "Alvo Aimbot: Cabeça", UDim2.new(0, 0, 0, 355))
+local espLineBtn = criarBtn(abaJogador, "ESP Line Players: OFF", UDim2.new(0, 0, 0, 323)) -- NOVO BOTÃO PEDIDO
+local aimbotBtn = criarBtn(abaJogador, "Aimbot: OFF", UDim2.new(0, 0, 0, 355))
+local aimbotParteBtn = criarBtn(abaJogador, "Alvo Aimbot: Cabeça", UDim2.new(0, 0, 0, 387))
 
-local ultBlueLockBtn = criarBtn(abaJogador, "Ult Blue Lock (Jamal Dance)", UDim2.new(0, 0, 0, 390))
+local ultBlueLockBtn = criarBtn(abaJogador, "Ult Blue Lock (Jamal Dance)", UDim2.new(0, 0, 0, 422))
 ultBlueLockBtn.BackgroundColor3 = Color3.fromRGB(150, 0, 0)
 
 local ultLabelLista = Instance.new("TextLabel", abaJogador)
 ultLabelLista.Size = UDim2.new(1, 0, 0, 20)
-ultLabelLista.Position = UDim2.new(0, 0, 0, 423)
+ultLabelLista.Position = UDim2.new(0, 0, 0, 455)
 ultLabelLista.Text = "Selecione o Alvo da Ult abaixo:"
 ultLabelLista.Font = Enum.Font.Code
 ultLabelLista.TextSize = 11
@@ -1054,7 +974,7 @@ ultLabelLista.ZIndex = 2
 
 local ultContainerLista = Instance.new("ScrollingFrame", abaJogador)
 ultContainerLista.Size = UDim2.new(1, 0, 0, 180)
-ultContainerLista.Position = UDim2.new(0, 0, 0, 446)
+ultContainerLista.Position = UDim2.new(0, 0, 0, 478)
 ultContainerLista.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
 ultContainerLista.BorderSizePixel = 1
 ultContainerLista.BorderColor3 = Color3.fromRGB(100, 0, 0)
@@ -1087,7 +1007,6 @@ local function atualizarListaUlt()
                 alvoUltSelecionado = plr
                 atualizarListaUlt()
             end)
-            
             y = y + 30
         end
     end
@@ -1099,9 +1018,7 @@ Pessoas.PlayerRemoving:Connect(atualizarListaUlt)
 task.spawn(atualizarListaUlt)
 
 ultBlueLockBtn.MouseButton1Click:Connect(function()
-    if not alvoUltSelecionado or not alvoUltSelecionado.Character then
-        return
-    end
+    if not alvoUltSelecionado or not alvoUltSelecionado.Character then return end
     
     local meuChar = p.Character
     local alvoChar = alvoUltSelecionado.Character
@@ -1148,9 +1065,7 @@ ultBlueLockBtn.MouseButton1Click:Connect(function()
         hrpMeu.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
     end
     
-    if animTrack then
-        pcall(function() animTrack:Stop() end)
-    end
+    if animTrack then pcall(function() animTrack:Stop() end) end
 end)
 
 -- ==================== ABA SCRIPTS ====================
@@ -1215,9 +1130,7 @@ walkFlingBtn.MouseButton1Click:Connect(function()
             conexaoWalkFling = hrp.Touched:Connect(function(hit)
                 if walkFlingAtivado and hit.Parent and hit.Parent:FindFirstChild("Humanoid") and hit.Parent.Name ~= p.Name then
                     local jogadorAlvo = Pessoas:GetPlayerFromCharacter(hit.Parent)
-                    if jogadorAlvo then
-                        FlingNoAlvo(jogadorAlvo)
-                    end
+                    if jogadorAlvo then FlingNoAlvo(jogadorAlvo) end
                 end
             end)
         end
@@ -1271,9 +1184,7 @@ aimbotBtn.MouseButton1Click:Connect(function()
     aimbotAtivo = not aimbotAtivo
     aimbotBtn.Text = aimbotAtivo and "Aimbot: ON" or "Aimbot: OFF"
     aimbotBtn.BackgroundColor3 = aimbotAtivo and Color3.fromRGB(180, 0, 0) or Color3.fromRGB(0, 0, 0)
-    if not aimbotApenasAssassinoAtivo then
-        fovCircle.Visible = aimbotAtivo
-    end
+    if not aimbotApenasAssassinoAtivo then fovCircle.Visible = aimbotAtivo end
 end)
 
 aimbotParteBtn.MouseButton1Click:Connect(function()
@@ -1297,9 +1208,7 @@ local function obterAlvoAimbot()
         if plr ~= p and plr.Character then
             local h = plr.Character:FindFirstChildOfClass("Humanoid")
             if h and h.Health > 0 then
-                if aimbotApenasAssassinoAtivo and detectarPapelMM2(plr) ~= "Murderer" then
-                    continue
-                end
+                if aimbotApenasAssassinoAtivo and detectarPapelMM2(plr) ~= "Murderer" then continue end
 
                 local parteAlvoObj = nil
                 if aimbotParteAlvo == "Head" then
@@ -1368,9 +1277,7 @@ c00lkiddThemeBtn.MouseButton1Click:Connect(function()
             Workspace.Gravity = 50
         end)
     else
-        pcall(function()
-            Workspace.Gravity = 196.2
-        end)
+        pcall(function() Workspace.Gravity = 196.2 end)
     end
 end)
 
@@ -1386,9 +1293,7 @@ task.spawn(function()
             local hue = tick() % 5 / 5
             local corRgb = Color3.fromHSV(hue, 1, 1)
             for _, part in pairs(p.Character:GetDescendants()) do
-                if part:IsA("BasePart") then
-                    part.Color = corRgb
-                end
+                if part:IsA("BasePart") then part.Color = corRgb end
             end
         end
         task.wait(0.1)
@@ -1425,9 +1330,7 @@ dropkickBtn.MouseButton1Click:Connect(function()
     pcall(function()
         loadstring(game:HttpGet("https://raw.githubusercontent.com/platinww/CrustyMain/refs/heads/main/universal/DropKick.lua"))()
         dropkickBtn.Text = "DropKick: Executado!"
-        task.delay(2, function()
-            dropkickBtn.Text = "DropKick: Executar"
-        end)
+        task.delay(2, function() dropkickBtn.Text = "DropKick: Executar" end)
     end)
 end)
 
@@ -1464,9 +1367,7 @@ flyBtn.MouseButton1Click:Connect(function()
     flyBtn.Text = flyAtivo and "Fly: ON" or "Fly: OFF"
     flyBtn.BackgroundColor3 = flyAtivo and Color3.fromRGB(180, 0, 0) or Color3.fromRGB(0, 0, 0)
     if flyAtivo then
-        pcall(function()
-            loadstring(game:HttpGet("https://pastebin.com/raw/TV83kUPv", true))()
-        end)
+        pcall(function() loadstring(game:HttpGet("https://pastebin.com/raw/TV83kUPv", true))() end)
     end
 end)
 
@@ -1475,12 +1376,11 @@ touchFlingBtn.MouseButton1Click:Connect(function()
     touchFlingBtn.Text = touchFlingAtivo and "Touch Fling: ON" or "Touch Fling: OFF"
     touchFlingBtn.BackgroundColor3 = touchFlingAtivo and Color3.fromRGB(180, 0, 0) or Color3.fromRGB(0, 0, 0)
     pcall(function()
-        if touchFlingAtivo then
-            loadstring(game:HttpGet("https://pastebin.com/raw/LgZwZ7ZB", true))()
-        end
+        if touchFlingAtivo then loadstring(game:HttpGet("https://pastebin.com/raw/LgZwZ7ZB", true))() end
     end)
 end)
 
+-- ==================== SISTEMA DE ESP & LINE ESP ====================
 local function atualizarESP()
     for _, plr in pairs(Pessoas:GetPlayers()) do
         if plr ~= p then
@@ -1522,13 +1422,34 @@ local function atualizarESP()
                     espTags[plr] = tag
                 end
             else
-                if espBoxes[plr] then
-                    espBoxes[plr]:Destroy()
-                    espBoxes[plr] = nil
+                if espBoxes[plr] then espBoxes[plr]:Destroy() espBoxes[plr] = nil end
+                if espTags[plr] then espTags[plr]:Destroy() espTags[plr] = nil end
+            end
+
+            -- DESENHO DE LINHA ESP VERMELHA
+            if espLineAtivo and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
+                local line = espTracerLines[plr]
+                if not line then
+                    line = Drawing.new("Line")
+                    line.Thickness = 1.5
+                    line.Color = Color3.fromRGB(255, 0, 0)
+                    line.Transparency = 1
+                    espTracerLines[plr] = line
                 end
-                if espTags[plr] then
-                    espTags[plr]:Destroy()
-                    espTags[plr] = nil
+                
+                local hrp = plr.Character.HumanoidRootPart
+                local screenPos, onScreen = Camera:WorldToViewportPoint(hrp.Position)
+                
+                if onScreen then
+                    line.From = Vector2.new(Camera.ViewportSize.X / 2, 0) -- TOPO DA TELA
+                    line.To = Vector2.new(screenPos.X, screenPos.Y)
+                    line.Visible = true
+                else
+                    line.Visible = false
+                end
+            else
+                if espTracerLines[plr] then
+                    espTracerLines[plr].Visible = false
                 end
             end
         end
@@ -1544,6 +1465,17 @@ espBtn.MouseButton1Click:Connect(function()
         for _, t in pairs(espTags) do if t then t:Destroy() end end
         espBoxes = {}
         espTags = {}
+    end
+end)
+
+espLineBtn.MouseButton1Click:Connect(function()
+    espLineAtivo = not espLineAtivo
+    espLineBtn.Text = espLineAtivo and "ESP Line Players: ON" or "ESP Line Players: OFF"
+    espLineBtn.BackgroundColor3 = espLineAtivo and Color3.fromRGB(180, 0, 0) or Color3.fromRGB(0, 0, 0)
+    if not espLineAtivo then
+        for _, line in pairs(espTracerLines) do
+            if line then line.Visible = false end
+        end
     end
 end)
 
@@ -1658,7 +1590,7 @@ RunService.RenderStepped:Connect(function()
 
     if hitboxSize > 2 then aplicarHitboxDireta() end
 
-    if espAtivo then
+    if espAtivo or espLineAtivo then
         atualizarESP()
     end
 
@@ -1684,9 +1616,7 @@ RunService.RenderStepped:Connect(function()
 end)
 
 excluir.MouseButton1Click:Connect(function()
-    if espArmaHighlight then
-        espArmaHighlight:Destroy()
-    end
+    for _, l in pairs(espTracerLines) do if l then l:Remove() end end
     fovCircle:Remove()
     gui:Destroy()
 end)
